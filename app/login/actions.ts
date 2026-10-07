@@ -1,7 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { admin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; message?: string };
@@ -14,17 +14,15 @@ export async function authAction(_: AuthState, form: FormData): Promise<AuthStat
 
   const supabase = await createClient();
   if (mode === "signup") {
-    const origin = process.env.APP_URL || (await headers()).get("origin") || "";
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${origin}/auth/callback` },
-    });
-    if (error) return { error: error.message };
-    if (!data.session) return { message: "Đã gửi email xác nhận. Mở link trong email để kích hoạt tài khoản." };
-  } else {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message === "Invalid login credentials" ? "Sai email hoặc mật khẩu." : error.message };
+    if (process.env.ALLOW_SIGNUP === "false") return { error: "Đăng ký tài khoản mới đang tắt." };
+    // Tạo tài khoản đã xác nhận (không phụ thuộc email SMTP của Supabase)
+    const { error } = await admin().auth.admin.createUser({ email, password, email_confirm: true });
+    if (error) {
+      const exists = /already|registered|exists/i.test(error.message);
+      return { error: exists ? "Email này đã có tài khoản, hãy đăng nhập." : error.message };
+    }
   }
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return { error: error.message === "Invalid login credentials" ? "Sai email hoặc mật khẩu." : error.message };
   redirect("/dashboard");
 }
