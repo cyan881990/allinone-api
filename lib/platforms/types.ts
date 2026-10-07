@@ -34,8 +34,8 @@ export type PlatformDef = {
   id: string;
   name: string;
   color: string;
-  /** "token": dán key/token thủ công · "oauth": bấm Kết nối */
-  auth: "token" | "oauth";
+  /** Mọi API con đều kết nối bằng key/token người dùng tự dán */
+  auth: "token";
   fields?: FieldDef[];
   supports: { text: boolean; image: boolean; video: boolean; multiImage?: boolean };
   note?: string;

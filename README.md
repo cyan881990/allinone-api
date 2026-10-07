@@ -34,7 +34,6 @@ npm run dev
 | `ENCRYPTION_KEY` | `openssl rand -base64 32` — mã hoá token của API con. **Mất key = mất toàn bộ kết nối.** |
 | `CRON_SECRET` | Bảo vệ endpoint chạy bài hẹn giờ |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Tài khoản duy nhất được dùng web app. Đổi mật khẩu: sửa `ADMIN_PASSWORD` trên Vercel, redeploy, đăng nhập bằng mật khẩu mới |
-| `GOOGLE_*`, `TIKTOK_*`, `LINKEDIN_*`, `X_*` | Chỉ cần cho nền tảng OAuth bạn dùng |
 
 ### Deploy Vercel
 Import repo vào Vercel, thêm các biến môi trường trên, deploy. `vercel.json` có sẵn cron chạy bài hẹn giờ **1 lần/ngày** (giới hạn gói Hobby). Muốn chạy mỗi phút: dùng cron-job.org (hoặc gói Pro) gọi
@@ -47,28 +46,23 @@ GET {APP_URL}/api/cron/scheduled   (header Authorization: Bearer CRON_SECRET)
 
 ## 2. Nối API con
 
-**Dán token (chạy ngay, không cần đăng ký app):**
+Mọi API con đều kết nối bằng **key/token bạn tự dán** (không có luồng OAuth). Khi chọn một nền tảng trong form **Nối API con**, app hiện hướng dẫn từng bước kèm link tài liệu chính thức; toàn bộ hướng dẫn cũng có ở trang **Tài liệu API** (`/dashboard/docs#lay-token`). Nội dung nằm trong `lib/platforms/guides.ts`.
 
-| Nền tảng | Cần gì |
+| Nền tảng | Cần dán |
 |---|---|
-| Telegram | Bot token từ @BotFather + chat ID/@channel (bot là admin) |
-| Discord / Slack | Webhook URL của kênh |
+| Telegram | Bot token + Chat ID |
+| Discord / Slack | Webhook URL |
 | Bluesky | Handle + App password |
-| Mastodon | Instance URL + access token |
-| Facebook Page | Page ID + Page access token dài hạn |
-| Instagram | IG Business user ID + access token (`instagram_content_publish`) |
-| Threads | User ID + token (`threads_content_publish`) |
+| Mastodon | Instance URL + Access token |
+| Facebook Page | Page ID + Page access token |
+| Instagram | IG User ID + Access token |
+| Threads | User ID + Access token |
+| YouTube | OAuth Client ID/Secret + Refresh token (lấy qua Google OAuth Playground) — app tự đổi access token |
+| TikTok | Client key/secret + Refresh token (365 ngày) — app tự đổi access token; trang `/tools/oauth-code` hiện mã code khi lấy token |
+| LinkedIn | Access token (60 ngày, từ OAuth Token Generator) |
+| X | API Key/Secret + Access Token/Secret (OAuth 1.0a, không hết hạn) |
 
-**OAuth (bấm "Đăng nhập … để kết nối")** — bạn phải tạo app ở từng nền tảng và khai báo Redirect URI `{APP_URL}/api/oauth/{platform}/callback`:
-
-| Nền tảng | Nơi tạo app | Lưu ý |
-|---|---|---|
-| YouTube | Google Cloud Console → bật YouTube Data API v3 → OAuth client (Web) | Upload video ở chế độ public cần app được Google verify; trước đó video có thể bị khoá private |
-| TikTok | developers.tiktok.com → Content Posting API | App chưa audit chỉ đăng được `SELF_ONLY` (riêng tư) |
-| LinkedIn | linkedin.com/developers → product "Share on LinkedIn" + "Sign In with OpenID Connect" | Bản này hỗ trợ text + 1 ảnh |
-| X | developer.x.com → OAuth 2.0, type Web App | Cần gói API có quyền ghi; bản này hỗ trợ text + 4 ảnh |
-
-Token OAuth được tự làm mới khi sắp hết hạn.
+Token được kiểm tra với nền tảng trước khi lưu, rồi mã hoá AES-256-GCM.
 
 ---
 
@@ -133,11 +127,11 @@ Phản hồi:
 
 ```
 lib/platforms/        connector từng mạng xã hội (thêm nền tảng mới: viết 1 PlatformDef, đăng ký ở index.ts)
-lib/oauth.ts          cấu hình OAuth + refresh token
+lib/platforms/guides.ts  hướng dẫn lấy token từng nền tảng
 lib/dispatch.ts       xác thực key, chọn API con, chạy song song, ghi log
 lib/crypto.ts         AES-256-GCM cho credentials, sinh/hash API key
 app/api/v1/*          API công khai
-app/api/oauth/*       luồng kết nối OAuth
+app/dashboard/docs    trang Tài liệu API
 app/api/cron/*        chạy bài hẹn giờ
 app/dashboard/*       giao diện quản lý API remote & API con
 supabase/migrations   schema + RLS
@@ -149,6 +143,6 @@ supabase/migrations   schema + RLS
 - RLS: mỗi user chỉ thấy dữ liệu của mình.
 
 ## Giới hạn của bản đầu & hướng mở rộng
-- Video cho LinkedIn/X chưa hỗ trợ; Meta (FB/IG/Threads) đang dùng token dán tay, chưa có nút OAuth.
+- Video cho LinkedIn/X chưa hỗ trợ.
 - Chưa có rate limit theo key, analytics, nhiều thành viên/team, whitelabel.
 - Video rất lớn tải qua bộ nhớ function — với file > vài trăm MB nên chuyển sang hàng đợi (Inngest/QStash) hoặc worker riêng.

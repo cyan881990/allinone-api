@@ -63,6 +63,7 @@ print(r.json())`,
         <dt className="font-mono">GET /api/v1/posts/:id</dt><dd className="text-muted">Kết quả từng API con</dd>
         <dt className="font-mono">DELETE /api/v1/posts/:id</dt><dd className="text-muted">Huỷ bài hẹn giờ</dd>
       </dl>
+      <a href="/dashboard/docs" className="btn btn-ghost w-full">Mở tài liệu API đầy đủ</a>
     </div>
   );
 }

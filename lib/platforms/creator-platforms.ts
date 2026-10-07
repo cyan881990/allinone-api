@@ -1,14 +1,33 @@
-import { caption, download, images, jsonFetch, postJSON, sleep, videos } from "./http";
-import { PlatformError, type PlatformDef } from "./types";
+import { caption, download, images, jsonFetch, need, postJSON, sleep, videos } from "./http";
+import { oauth1Header, type OAuth1Keys } from "./oauth1";
+import { ensureFreshToken } from "./refresh";
+import { PlatformError, type Credentials, type PlatformDef } from "./types";
+
+/** Dùng trong verify(): lấy access token từ refresh_token mà không cần lưu */
+const tokenFor = (platform: string, c: Credentials) => ensureFreshToken(platform, c, async () => {});
 
 /* ---------------- YouTube ---------------- */
 export const youtube: PlatformDef = {
   id: "youtube",
   name: "YouTube",
   color: "#FF0000",
-  auth: "oauth",
+  auth: "token",
   supports: { text: false, image: false, video: true },
   note: "Cần 1 video. Tuỳ chọn: options.youtube = { privacy: public|unlisted|private, tags: [], category_id }",
+  fields: [
+    { key: "client_id", label: "OAuth Client ID", placeholder: "xxxx.apps.googleusercontent.com" },
+    { key: "client_secret", label: "OAuth Client secret", type: "password" },
+    { key: "refresh_token", label: "Refresh token", type: "password", placeholder: "1//0g…" },
+  ],
+  async verify(c) {
+    need(c, "client_id", "client_secret", "refresh_token");
+    const token = await tokenFor("youtube", c);
+    const r = await jsonFetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.items?.length) throw new PlatformError("Tài khoản Google này chưa có kênh YouTube");
+    return r.items[0].snippet?.title;
+  },
   async publish(input, { accessToken, options }) {
     const vid = videos(input)[0];
     if (!vid) throw new PlatformError("YouTube cần 1 video");
@@ -50,8 +69,21 @@ export const tiktok: PlatformDef = {
   id: "tiktok",
   name: "TikTok",
   color: "#000000",
-  auth: "oauth",
+  auth: "token",
   supports: { text: false, image: true, video: true, multiImage: true },
+  fields: [
+    { key: "client_key", label: "Client key", placeholder: "aw…" },
+    { key: "client_secret", label: "Client secret", type: "password" },
+    { key: "refresh_token", label: "Refresh token", type: "password", help: "Hiệu lực 365 ngày, app tự đổi access token khi cần" },
+  ],
+  async verify(c) {
+    need(c, "client_key", "client_secret", "refresh_token");
+    const token = await tokenFor("tiktok", c);
+    const r = await jsonFetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return r.data?.user?.display_name;
+  },
   note: "App chưa được TikTok duyệt chỉ đăng được ở chế độ riêng tư (SELF_ONLY). Ảnh cần domain đã xác minh (PULL_FROM_URL).",
   async publish(input, { accessToken, options }) {
     const token = await accessToken();
@@ -127,16 +159,24 @@ export const linkedin: PlatformDef = {
   id: "linkedin",
   name: "LinkedIn",
   color: "#0A66C2",
-  auth: "oauth",
+  auth: "token",
   supports: { text: true, image: true, video: false },
-  async publish(input, { accessToken, credentials }) {
+  note: "Access token có hiệu lực 60 ngày; hết hạn thì tạo token mới và nối lại.",
+  fields: [{ key: "access_token", label: "Access token", type: "password", placeholder: "AQV…" }],
+  async verify(c) {
+    need(c, "access_token");
+    const r = await jsonFetch("https://api.linkedin.com/v2/userinfo", { headers: { Authorization: `Bearer ${c.access_token}` } });
+    return r.name;
+  },
+  async publish(input, { accessToken }) {
     const token = await accessToken();
+    const me = await jsonFetch("https://api.linkedin.com/v2/userinfo", { headers: { Authorization: `Bearer ${token}` } });
     const H = {
       Authorization: `Bearer ${token}`,
       "LinkedIn-Version": process.env.LINKEDIN_VERSION || "202606",
       "X-Restli-Protocol-Version": "2.0.0",
     };
-    const author = credentials.author;
+    const author = `urn:li:person:${me.sub}`;
     if (videos(input).length) throw new PlatformError("LinkedIn: bản này chưa hỗ trợ video");
     const body: any = {
       author,
@@ -165,28 +205,46 @@ export const linkedin: PlatformDef = {
   },
 };
 
-/* ---------------- X (Twitter) ---------------- */
+/* ---------------- X (Twitter) — OAuth 1.0a, 4 key không hết hạn ---------------- */
+const xKeys = (c: Credentials) => c as OAuth1Keys;
+
 export const x: PlatformDef = {
   id: "x",
   name: "X (Twitter)",
   color: "#000000",
-  auth: "oauth",
+  auth: "token",
   supports: { text: true, image: true, video: false, multiImage: true },
-  note: "Gói X API phải cho phép ghi tweet. Bản này hỗ trợ text + tối đa 4 ảnh.",
-  async publish(input, { accessToken }) {
-    const token = await accessToken();
-    const H = { Authorization: `Bearer ${token}` };
+  note: "App phải có quyền Read and write. Bản này hỗ trợ text + tối đa 4 ảnh.",
+  fields: [
+    { key: "api_key", label: "API Key (Consumer key)" },
+    { key: "api_secret", label: "API Key Secret", type: "password" },
+    { key: "access_token", label: "Access Token" },
+    { key: "access_token_secret", label: "Access Token Secret", type: "password" },
+  ],
+  async verify(c) {
+    need(c, "api_key", "api_secret", "access_token", "access_token_secret");
+    const url = "https://api.x.com/2/users/me";
+    const r = await jsonFetch(url, { headers: { Authorization: oauth1Header("GET", url, xKeys(c)) } });
+    return "@" + r.data?.username;
+  },
+  async publish(input, { credentials: c }) {
     const media_ids: string[] = [];
     for (const img of images(input).slice(0, 4)) {
       const f = await download(img.url);
+      const url = "https://api.x.com/2/media/upload";
       const fd = new FormData();
       fd.append("media", new Blob([new Uint8Array(f.buf)], { type: f.type }), "image");
       fd.append("media_category", "tweet_image");
-      const r = await jsonFetch("https://api.x.com/2/media/upload", { method: "POST", headers: H, body: fd });
+      const r = await jsonFetch(url, { method: "POST", headers: { Authorization: oauth1Header("POST", url, xKeys(c)) }, body: fd });
       media_ids.push(r.data?.id || r.media_id_string);
     }
     if (videos(input).length && !media_ids.length && !input.text) throw new PlatformError("X: bản này chưa hỗ trợ video");
-    const r = await postJSON("https://api.x.com/2/tweets", { text: caption(input, 280), ...(media_ids.length ? { media: { media_ids } } : {}) }, H);
+    const url = "https://api.x.com/2/tweets";
+    const r = await postJSON(
+      url,
+      { text: caption(input, 280), ...(media_ids.length ? { media: { media_ids } } : {}) },
+      { Authorization: oauth1Header("POST", url, xKeys(c)) },
+    );
     return { id: r.data.id, url: `https://x.com/i/status/${r.data.id}` };
   },
 };

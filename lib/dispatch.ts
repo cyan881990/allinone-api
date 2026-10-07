@@ -1,6 +1,6 @@
 import "server-only";
 import { decryptJSON, encryptJSON, sha256 } from "./crypto";
-import { ensureFreshToken } from "./oauth";
+import { ensureFreshToken } from "./platforms/refresh";
 import { getPlatform } from "./platforms";
 import type { MediaItem, PostInput } from "./platforms/types";
 import { admin } from "./supabase/admin";

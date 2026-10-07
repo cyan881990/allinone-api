@@ -1,7 +1,8 @@
 import { bluesky, mastodon } from "./fediverse";
 import { discord, slack, telegram } from "./messaging";
 import { facebook, instagram, threads } from "./meta";
-import { linkedin, tiktok, x, youtube } from "./oauth-platforms";
+import { linkedin, tiktok, x, youtube } from "./creator-platforms";
+import { GUIDES } from "./guides";
 import type { PlatformDef } from "./types";
 
 export const PLATFORMS: PlatformDef[] = [
@@ -15,6 +16,6 @@ export const getPlatform = (id: string) => PLATFORM_MAP[id];
 
 /** Thông tin an toàn để gửi xuống client (không có hàm) */
 export function platformMeta(p: PlatformDef) {
-  return { id: p.id, name: p.name, color: p.color, auth: p.auth, fields: p.fields || [], supports: p.supports, note: p.note };
+  return { id: p.id, name: p.name, color: p.color, fields: p.fields || [], supports: p.supports, note: p.note, guide: GUIDES[p.id] };
 }
 export type PlatformMeta = ReturnType<typeof platformMeta>;
