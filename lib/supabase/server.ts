@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { isAdminEmail } from "@/lib/auth-config";
 
 /** Supabase client gắn với phiên đăng nhập (cookie) — chỉ dùng cho xác thực người dùng. */
 export async function createClient() {
@@ -26,7 +27,8 @@ export async function createClient() {
 export async function getUser() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  return data.user;
+  // Chế độ một người dùng: phiên của bất kỳ tài khoản nào khác đều bị bỏ qua
+  return data.user && isAdminEmail(data.user.email) ? data.user : null;
 }
 
 export async function requireUser() {

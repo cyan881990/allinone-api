@@ -34,8 +34,8 @@ export default async function Home() {
             kênh bạn chọn, bằng đúng một request.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href={user ? "/dashboard" : "/login?mode=signup"} className="btn btn-signal">
-              Tạo API remote đầu tiên
+            <Link href={user ? "/dashboard" : "/login"} className="btn btn-signal">
+              {user ? "Vào bảng điều khiển" : "Đăng nhập để bắt đầu"}
             </Link>
             <a href="#api" className="btn btn-ghost">Xem cách gọi API</a>
           </div>
