@@ -22,7 +22,7 @@ npm run dev
 1. Tạo project tại supabase.com.
 2. Mở **SQL Editor**, chạy toàn bộ `supabase/migrations/001_init.sql` (tạo bảng, RLS, bucket `media`).
 3. Lấy URL + anon key + service role key ở **Project Settings → API** cho `.env.local`.
-4. **Authentication → URL Configuration**: đặt Site URL = `APP_URL`, thêm `{APP_URL}/auth/callback` vào Redirect URLs.
+4. Không cần cấu hình email: app chạy chế độ **một người dùng**, tài khoản admin được tạo tự động ở lần đăng nhập đầu.
 
 ### Biến môi trường
 
@@ -33,6 +33,7 @@ npm run dev
 | `APP_URL` | URL gốc, ví dụ `https://allinone.vercel.app` |
 | `ENCRYPTION_KEY` | `openssl rand -base64 32` — mã hoá token của API con. **Mất key = mất toàn bộ kết nối.** |
 | `CRON_SECRET` | Bảo vệ endpoint chạy bài hẹn giờ |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Tài khoản duy nhất được dùng web app. Đổi mật khẩu: sửa `ADMIN_PASSWORD` trên Vercel, redeploy, đăng nhập bằng mật khẩu mới |
 | `GOOGLE_*`, `TIKTOK_*`, `LINKEDIN_*`, `X_*` | Chỉ cần cho nền tảng OAuth bạn dùng |
 
 ### Deploy Vercel
