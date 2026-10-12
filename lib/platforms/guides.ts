@@ -201,3 +201,32 @@ export const GUIDES: Record<string, PlatformGuide> = {
 };
 
 export const fillAppUrl = (s: string, appUrl: string) => s.replaceAll("{APP_URL}", appUrl || "https://your-app.vercel.app");
+
+/** Hướng dẫn cho cách kết nối bằng "Đăng nhập" (OAuth) — hiện có Instagram */
+export const OAUTH_GUIDES: Record<string, PlatformGuide> = {
+  instagram: {
+    summary:
+      "Khoảng 10 phút, làm một lần. Tạo app Meta có Instagram Login, khai báo Redirect URI, rồi mỗi tài khoản chỉ cần mở URL xác thực và bấm Cho phép. Không cần Fanpage.",
+    steps: [
+      "Vào developers.facebook.com/apps → Create app → chọn use case quản lý nội dung Instagram (\"Manage messaging & content on Instagram\"), loại app Business.",
+      "Trong app: Instagram → API setup with Instagram login. Ở đầu trang, copy Instagram app ID và Instagram app secret — đây KHÔNG phải App ID ở Settings → Basic.",
+      {
+        text: "Cùng trang, mục 3 \"Set up Instagram business login\" → Business login settings → OAuth redirect URIs: dán URL dưới đây → Save.",
+        code: "{APP_URL}/api/oauth/instagram/callback",
+      },
+      "App đang ở chế độ Development: vào App roles → Roles → Add people → chọn Instagram Tester, nhập username Instagram. Chủ tài khoản chấp nhận lời mời tại https://www.instagram.com/accounts/manage_access/ (tab Tester invites).",
+      "Nhập Instagram app ID và app secret ở đây, bấm Tạo URL xác thực. Mở URL (hoặc gửi cho chủ tài khoản) → đăng nhập Instagram → Cho phép. API con tự xuất hiện trong danh sách.",
+    ],
+    links: [
+      { label: "Meta: Business Login for Instagram", url: "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login" },
+      { label: "Meta: Get started with Instagram API with Instagram Login", url: "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/get-started" },
+      { label: "Danh sách app Meta của bạn", url: "https://developers.facebook.com/apps" },
+    ],
+    caveats: [
+      "Tài khoản Instagram phải là Business hoặc Creator (Cài đặt → Loại tài khoản và công cụ).",
+      "URL xác thực chỉ dùng được một lần và hết hạn sau 30 phút.",
+      "Token có hạn 60 ngày; app tự gia hạn khi còn dưới 15 ngày mỗi lần đăng bài. Nếu tài khoản không đăng gì suốt 60 ngày, hãy tạo URL mới — kết nối cũ được cập nhật, không tạo trùng.",
+      "App Secret được mã hoá AES-256 cùng token để gia hạn về sau.",
+    ],
+  },
+};

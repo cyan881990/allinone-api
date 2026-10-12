@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PlatformGuideView } from "@/components/platform-guide";
 import { PLATFORMS } from "@/lib/platforms";
-import { GUIDES } from "@/lib/platforms/guides";
+import { GUIDES, OAUTH_GUIDES } from "@/lib/platforms/guides";
 import { admin } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
 import { CodeTabs } from "./code-tabs";
@@ -265,7 +265,7 @@ print(r.status_code, r.json())`,
         />
 
         <H2 id="lay-token">Lấy token cho API con</H2>
-        <p>Mọi API con đều kết nối bằng key/token bạn tự lấy từ nền tảng. Token được kiểm tra trước khi lưu và mã hoá AES-256-GCM. Bấm từng nền tảng để xem hướng dẫn.</p>
+        <p>API con kết nối bằng key/token bạn tự lấy từ nền tảng; riêng Instagram có thêm cách <b>Đăng nhập Instagram</b>: tạo URL xác thực, cấp quyền là token được lấy và tự gia hạn. Token được kiểm tra trước khi lưu và mã hoá AES-256-GCM. Bấm từng nền tảng để xem hướng dẫn.</p>
         <div className="space-y-2">
           {PLATFORMS.map((p) => {
             const g = GUIDES[p.id];
@@ -277,9 +277,22 @@ print(r.status_code, r.json())`,
                   {p.name}
                   <span className="ml-auto text-[13px] font-normal text-muted">{(p.fields || []).filter((f) => !f.optional).map((f) => f.label).join(", ")}</span>
                 </summary>
-                <div className="mt-3">
-                  <PlatformGuideView guide={g} appUrl={base} />
-                </div>
+                {OAUTH_GUIDES[p.id] ? (
+                  <div className="mt-3 space-y-6">
+                    <section>
+                      <h3 className="mb-2 font-bold">Cách 1 — Đăng nhập {p.name} (khuyên dùng)</h3>
+                      <PlatformGuideView guide={OAUTH_GUIDES[p.id]} appUrl={base} />
+                    </section>
+                    <section className="border-t border-line pt-4">
+                      <h3 className="mb-2 font-bold">Cách 2 — Dán token</h3>
+                      <PlatformGuideView guide={g} appUrl={base} />
+                    </section>
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <PlatformGuideView guide={g} appUrl={base} />
+                  </div>
+                )}
               </details>
             );
           })}

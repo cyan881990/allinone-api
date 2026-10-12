@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getOwnedRemote, insertConnection } from "@/lib/connections";
-import { decryptJSON, generateApiKey } from "@/lib/crypto";
+import { decryptJSON, encryptJSON, generateApiKey, randomToken } from "@/lib/crypto";
 import { createPost, executePost, normalizeRequest, type RemoteApi } from "@/lib/dispatch";
+import { IG_STATE_TTL_MIN, igAuthorizeUrl, igEnvApp } from "@/lib/instagram-oauth";
 import { getPlatform } from "@/lib/platforms";
 import { admin } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
@@ -189,4 +190,47 @@ export async function cancelPost(postId: string) {
     .eq("status", "scheduled")
     .select("remote_api_id");
   if (data?.[0]) revalidatePath(`/dashboard/${data[0].remote_api_id}`);
+}
+
+/* ---------- OAuth: Đăng nhập Instagram ---------- */
+export type IgAuthState = { error?: string; url?: string; state?: string; expiresAt?: string };
+
+export async function createInstagramAuthUrl(_: IgAuthState, form: FormData): Promise<IgAuthState> {
+  const user = await requireUser();
+  const remoteId = String(form.get("remote_id") || "");
+  if (!(await getOwnedRemote(remoteId, user.id))) return { error: "Không tìm thấy API remote" };
+  if (!process.env.APP_URL) return { error: "Thiếu biến môi trường APP_URL nên không tạo được Redirect URI" };
+
+  const env = igEnvApp();
+  const app_id = String(form.get("app_id") || "").trim() || env.app_id;
+  const app_secret = String(form.get("app_secret") || "").trim() || env.app_secret;
+  if (!app_id || !app_secret) return { error: "Nhập Instagram App ID và App Secret" };
+  if (!/^\d{6,25}$/.test(app_id)) return { error: "Instagram App ID chỉ gồm chữ số (lấy ở trang API setup with Instagram login)" };
+
+  const state = randomToken(24);
+  const expiresAt = new Date(Date.now() + IG_STATE_TTL_MIN * 60_000).toISOString();
+  const db = admin();
+  // Dọn các phiên cũ đã hết hạn hơn 1 ngày
+  await db.from("oauth_states").delete().eq("owner_id", user.id).lt("expires_at", new Date(Date.now() - 86_400_000).toISOString());
+  const { error } = await db.from("oauth_states").insert({
+    id: state,
+    owner_id: user.id,
+    remote_api_id: remoteId,
+    platform: "instagram",
+    payload: encryptJSON({ app_id, app_secret, label: String(form.get("label") || "").trim() }),
+    expires_at: expiresAt,
+  });
+  if (error) return { error: error.message };
+  return { url: igAuthorizeUrl(app_id, state), state, expiresAt };
+}
+
+export type OAuthStatus = { status: "pending" | "processing" | "done" | "error" | "expired" | "unknown"; label?: string; account?: string; error?: string };
+
+export async function getOAuthStatus(state: string): Promise<OAuthStatus> {
+  const user = await requireUser();
+  const { data } = await admin().from("oauth_states").select("status, result, expires_at, remote_api_id").eq("id", state).eq("owner_id", user.id).maybeSingle();
+  if (!data) return { status: "unknown" };
+  if (data.status === "pending" && Date.parse(data.expires_at) < Date.now()) return { status: "expired" };
+  if (data.status === "done") revalidatePath(`/dashboard/${data.remote_api_id}`);
+  return { status: data.status, label: data.result?.label, account: data.result?.account, error: data.result?.error };
 }

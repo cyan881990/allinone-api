@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOwnedRemote } from "@/lib/connections";
+import { igEnvApp, igRedirectUri } from "@/lib/instagram-oauth";
 import { PLATFORMS, PLATFORM_MAP, platformMeta } from "@/lib/platforms";
 import { admin } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
@@ -73,7 +74,7 @@ export default async function RemotePage({
           <p className="text-sm text-muted">Gọi theo label (một tài khoản) hoặc theo tên nền tảng (mọi tài khoản của nền tảng đó).</p>
           <PatchBay remoteName={remote.name} connections={connections} />
         </div>
-        <AddConnection remoteId={id} platforms={metas} appUrl={appUrl} />
+        <AddConnection remoteId={id} platforms={metas} appUrl={appUrl} igOAuth={{ redirectUri: igRedirectUri(), envReady: !!(igEnvApp().app_id && igEnvApp().app_secret) }} />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">

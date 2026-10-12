@@ -1,7 +1,7 @@
 import { caption, images, jsonFetch, need, postForm, sleep, videos } from "./http";
 import { PlatformError, type PlatformDef } from "./types";
 
-const V = () => process.env.META_GRAPH_VERSION || "v23.0";
+const V = () => process.env.META_GRAPH_VERSION || "v26.0";
 const graph = (host = "graph.facebook.com") => `https://${host}/${V()}`;
 
 /* ---------------- Facebook Page ---------------- */
@@ -67,7 +67,7 @@ export const instagram: PlatformDef = {
   color: "#E1306C",
   auth: "token",
   supports: { text: false, image: true, video: true, multiImage: true },
-  note: "Tài khoản Business/Creator. Media phải là URL công khai. Video được đăng dạng Reels.",
+  note: "Tài khoản Business/Creator. Media phải là URL công khai. Video được đăng dạng Reels. Nên dùng \"Đăng nhập Instagram\" để token tự gia hạn.",
   fields: [
     { key: "ig_user_id", label: "Instagram User ID", placeholder: "1784..." },
     { key: "access_token", label: "Access token", type: "password", help: "Quyền instagram_basic + instagram_content_publish" },
@@ -78,10 +78,10 @@ export const instagram: PlatformDef = {
     const r = await jsonFetch(`${graph(c.host || undefined)}/${c.ig_user_id}?fields=username&access_token=${c.access_token}`);
     return "@" + r.username;
   },
-  async publish(input, { credentials: c, options }) {
+  async publish(input, { credentials: c, options, accessToken }) {
     const host = c.host || "graph.facebook.com";
     const base = `${graph(host)}/${c.ig_user_id}`;
-    const token = c.access_token;
+    const token = await accessToken(); // token Instagram Login được tự gia hạn trước khi hết 60 ngày
     const cap = caption(input, 2200);
     if (input.media.length === 0) throw new PlatformError("Instagram cần ít nhất 1 ảnh hoặc video");
 

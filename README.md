@@ -55,7 +55,7 @@ Mọi API con đều kết nối bằng **key/token bạn tự dán** (không c�
 | Bluesky | Handle + App password |
 | Mastodon | Instance URL + Access token |
 | Facebook Page | Page ID + Page access token |
-| Instagram | IG User ID + Access token |
+| Instagram | **Đăng nhập Instagram** (khuyên dùng): nhập Instagram App ID/Secret → *Tạo URL xác thực* → cấp quyền; token 60 ngày được tự gia hạn. Hoặc dán IG User ID + Access token |
 | Threads | User ID + Access token |
 | YouTube | OAuth Client ID/Secret + Refresh token (lấy qua Google OAuth Playground) — app tự đổi access token |
 | TikTok | Client key/secret + Refresh token (365 ngày) — app tự đổi access token; trang `/tools/oauth-code` hiện mã code khi lấy token |
@@ -63,6 +63,12 @@ Mọi API con đều kết nối bằng **key/token bạn tự dán** (không c�
 | X | API Key/Secret + Access Token/Secret (OAuth 1.0a, không hết hạn) |
 
 Token được kiểm tra với nền tảng trước khi lưu, rồi mã hoá AES-256-GCM.
+
+### Đăng nhập Instagram (OAuth)
+- Khai báo Redirect URI `{APP_URL}/api/oauth/instagram/callback` trong app Meta (Instagram → API setup with Instagram login → Business login settings).
+- *Tạo URL xác thực* lưu một state ngẫu nhiên vào bảng `oauth_states` (dùng 1 lần, hết hạn 30 phút), nên URL mở được trên thiết bị khác hoặc gửi cho chủ tài khoản.
+- Callback đổi code → token ngắn hạn → token dài hạn 60 ngày, lấy `user_id` từ `/me`, tạo API con (hoặc cập nhật nếu tài khoản đã có). Token được gia hạn khi còn dưới 15 ngày mỗi lần đăng.
+- Cần chạy migration `supabase/migrations/002_oauth_states.sql`.
 
 ---
 
@@ -132,6 +138,8 @@ lib/dispatch.ts       xác thực key, chọn API con, chạy song song, ghi log
 lib/crypto.ts         AES-256-GCM cho credentials, sinh/hash API key
 app/api/v1/*          API công khai
 app/dashboard/docs    trang Tài liệu API
+app/api/oauth/instagram/callback  callback Đăng nhập Instagram
+lib/instagram-oauth.ts            URL xác thực, đổi code/token Instagram
 app/api/cron/*        chạy bài hẹn giờ
 app/dashboard/*       giao diện quản lý API remote & API con
 supabase/migrations   schema + RLS

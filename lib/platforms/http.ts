@@ -12,6 +12,7 @@ export async function jsonFetch<T = any>(url: string, init: RequestInit = {}): P
   if (!res.ok) {
     const msg =
       body?.error?.message ||
+      body?.error_message ||
       body?.error_description ||
       body?.message ||
       body?.detail ||
