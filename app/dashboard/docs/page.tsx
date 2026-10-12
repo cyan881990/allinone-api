@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { PlatformGuideView } from "@/components/platform-guide";
-import { PLATFORMS } from "@/lib/platforms";
+import { PLATFORMS, PLATFORM_MAP } from "@/lib/platforms";
 import { GUIDES, OAUTH_GUIDES } from "@/lib/platforms/guides";
+import { LIMIT_RULES, windowLabel } from "@/lib/platforms/limits";
 import { admin } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
 import { CodeTabs } from "./code-tabs";
@@ -17,6 +18,7 @@ const TOC = [
   ["options", "Tuỳ chọn theo nền tảng"],
   ["phan-hoi", "Phản hồi"],
   ["lich-su", "Lịch sử & hẹn giờ"],
+  ["thong-ke", "Thống kê & giới hạn"],
   ["endpoint-khac", "Endpoint khác"],
   ["ma-loi", "Mã lỗi"],
   ["gioi-han", "Nền tảng hỗ trợ"],
@@ -223,12 +225,47 @@ print(r.status_code, r.json())`,
           <li>Huỷ bài hẹn giờ bằng <C>DELETE /api/v1/posts/:id</C> hoặc nút Huỷ trong Lịch sử.</li>
         </ul>
 
+        <H2 id="thong-ke">Thống kê & giới hạn</H2>
+        <p>
+          Mỗi lượt gọi tới một API con được ghi lại để đếm so với giới hạn của nền tảng. Khi một API con chạm trần,
+          AllInOne API dừng ngay tại chỗ và trả lỗi kèm giờ được gọi lại, thay vì gửi lên nền tảng rồi ăn 429 — gọi
+          vượt trần nhiều lần có thể khiến ứng dụng bị đánh dấu spam.
+        </p>
+        <ul className="mt-3 list-disc space-y-1 pl-5">
+          <li>Số đếm chỉ tính các bài đi qua AllInOne API. Bài bạn đăng tay trên app hoặc bằng công cụ khác vẫn ăn vào quota của nền tảng nhưng không hiện ở đây.</li>
+          <li>Instagram và Threads có endpoint trả quota thật; gọi <C>GET /api/v1/usage?live=1</C> để đối chiếu với số đếm nội bộ.</li>
+          <li>Nền tảng không công bố trần cụ thể thì chỉ đếm, không chặn.</li>
+        </ul>
+        <Table
+          head={["Nền tảng", "Giới hạn", "Chặn trước khi gọi"]}
+          rows={Object.values(LIMIT_RULES).map((r) => [
+            <a key="a" href={r.docs} target="_blank" rel="noreferrer" className="underline">
+              {PLATFORM_MAP[r.platform]?.name || r.platform}
+            </a>,
+            <span key="b">
+              {r.max ? <b>{r.max.toLocaleString("vi-VN")} / {windowLabel(r.windowMinutes ?? null)}</b> : <i>không công bố</i>} — {r.text}
+            </span>,
+            r.enforce ? "Có" : "Không",
+          ])}
+        />
+        <Pre>{`curl ${base}/api/v1/usage -H "Authorization: Apikey aio_xxxxxxxx"
+
+{ "success": true, "tracking": true,
+  "stats": { "last_24h": 12, "last_7d": 40, "success_rate": 95, "by_platform": [...] },
+  "connections": [
+    { "label": "allinone-api-ig", "platform": "instagram",
+      "limit": { "used": 12, "max": 100, "remaining": 88, "percent": 12,
+                 "window_minutes": 1440, "resets_at": "2026-10-13T09:37:00.000Z",
+                 "enforced": true, "reported_by_platform": null } }
+  ] }`}</Pre>
+
         <H2 id="endpoint-khac">Endpoint khác</H2>
         <Table
           head={["Endpoint", "Mô tả"]}
           rows={[
             [<C key="a">GET /api/v1/me</C>, <>Kiểm tra key. Trả <C>{`{ success, remote_api: { id, name } }`}</C></>],
             [<C key="a">GET /api/v1/connections</C>, <>Danh sách API con: <C>id, platform, label, display_name, enabled, status, last_error</C>. Không bao giờ trả token.</>],
+            [<C key="a">GET /api/v1/usage</C>, <>Thống kê và tình trạng giới hạn từng API con. Query: <C>live=1</C> để đọc thêm quota thật từ nền tảng.</>],
             [<C key="a">GET /api/v1/posts</C>, <>Lịch sử, mới nhất trước. Query: <C>limit</C> (mặc định 20, tối đa 100), <C>status</C>.</>],
             [<C key="a">GET /api/v1/posts/:id</C>, "Chi tiết một bài: payload, trạng thái, kết quả từng API con"],
             [<C key="a">DELETE /api/v1/posts/:id</C>, <>Huỷ bài đang <C>scheduled</C>. Bài ở trạng thái khác trả <C>409</C>.</>],

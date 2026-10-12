@@ -5,12 +5,14 @@ import { igEnvApp, igRedirectUri } from "@/lib/instagram-oauth";
 import { PLATFORMS, PLATFORM_MAP, platformMeta } from "@/lib/platforms";
 import { admin } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
+import { limitFor, usageStats } from "@/lib/usage";
 import { cancelPost } from "../actions";
 import { AddConnection } from "./add-connection";
 import { ApiSnippet } from "./api-snippet";
 import { Console } from "./console";
 import { PatchBay } from "./patch-bay";
 import { RemoteControls } from "./remote-controls";
+import { UsagePanel } from "./usage-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,17 @@ export default async function RemotePage({
   const appUrl = (process.env.APP_URL || "").replace(/\/$/, "");
   const connections = (conns || []).map((c) => ({ ...c, color: PLATFORM_MAP[c.platform]?.color || "#888", platformName: PLATFORM_MAP[c.platform]?.name || c.platform }));
 
+  // Thống kê và giới hạn. Không gọi quota thật ở đây để trang không phụ thuộc vào mạng của nền tảng.
+  const [stats, rawLimits] = await Promise.all([
+    usageStats(id),
+    Promise.all((conns || []).map((c) => limitFor(c))),
+  ]);
+  const limits = rawLimits.flatMap((l, i) => {
+    const c = connections[i];
+    if (!l || !c) return [];
+    return [{ ...l, platformName: c.platformName, color: c.color, displayName: c.display_name }];
+  });
+
   return (
     <div className="space-y-8">
       <div>
@@ -81,6 +94,8 @@ export default async function RemotePage({
         <Console remoteId={id} connections={connections.filter((c) => c.enabled)} />
         <ApiSnippet appUrl={appUrl} keyPrefix={remote.key_prefix} labels={connections.map((c) => c.label)} platforms={[...new Set(connections.map((c) => c.platform))]} />
       </section>
+
+      <UsagePanel stats={stats} limits={limits} />
 
       <section>
         <h2 className="text-lg font-bold">Lịch sử gọi API</h2>

@@ -59,6 +59,7 @@ print(r.json())`,
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
         <dt className="font-mono">GET /api/v1/connections</dt><dd className="text-muted">Danh sách API con</dd>
+        <dt className="font-mono">GET /api/v1/usage</dt><dd className="text-muted">Thống kê &amp; giới hạn, ?live=1</dd>
         <dt className="font-mono">GET /api/v1/posts</dt><dd className="text-muted">Lịch sử, lọc ?status=</dd>
         <dt className="font-mono">GET /api/v1/posts/:id</dt><dd className="text-muted">Kết quả từng API con</dd>
         <dt className="font-mono">DELETE /api/v1/posts/:id</dt><dd className="text-muted">Huỷ bài hẹn giờ</dd>

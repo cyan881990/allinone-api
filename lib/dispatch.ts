@@ -4,6 +4,7 @@ import { ensureFreshToken } from "./platforms/refresh";
 import { getPlatform } from "./platforms";
 import type { MediaItem, PostInput } from "./platforms/types";
 import { admin } from "./supabase/admin";
+import { overLimitMessage, releaseUsage, reserveUsage, settleUsage } from "./usage";
 
 export type RemoteApi = { id: string; owner_id: string; name: string; active: boolean };
 
@@ -27,6 +28,8 @@ export type TargetResult = {
   url?: string;
   error?: string;
   ms: number;
+  /** true khi bị chính AllInOne API chặn vì chạm giới hạn, chưa gọi tới nền tảng. */
+  limited?: boolean;
 };
 
 /* ---------- Xác thực API key ---------- */
@@ -90,10 +93,21 @@ export function resolveTargets(conns: ConnectionRow[], targets?: string[]) {
 }
 
 /* ---------- Gọi 1 API con ---------- */
-async function publishOne(conn: ConnectionRow, input: PostInput): Promise<TargetResult> {
+async function publishOne(conn: ConnectionRow, input: PostInput, postId: string): Promise<TargetResult> {
   const t0 = Date.now();
   const base = { connection_id: conn.id, label: conn.label, platform: conn.platform };
   const def = getPlatform(conn.platform);
+
+  // Đặt chỗ trước rồi mới đếm: request chạy song song nhìn thấy nhau, không cùng
+  // lúc lọt qua chỗ trống cuối cùng. Chạm trần thì dừng tại đây — gọi tiếp chỉ tốn
+  // quota và dễ bị nền tảng đánh dấu spam.
+  const usageId = await reserveUsage(conn, postId);
+  const limited = await overLimitMessage(conn);
+  if (limited) {
+    await releaseUsage(usageId);
+    return { ...base, ok: false, error: limited, limited: true, ms: Date.now() - t0 };
+  }
+
   try {
     if (!def) throw new Error(`Nền tảng không hỗ trợ: ${conn.platform}`);
     let creds = decryptJSON<Record<string, any>>(conn.credentials);
@@ -106,12 +120,20 @@ async function publishOne(conn: ConnectionRow, input: PostInput): Promise<Target
       accessToken: () => ensureFreshToken(conn.platform, creds, save),
       options: { ...(input.options[conn.platform] || {}), ...(input.options[conn.label] || {}) },
     });
-    await admin().from("connections").update({ status: "ok", last_error: null }).eq("id", conn.id);
-    return { ...base, ok: true, id: r.id, url: r.url, ms: Date.now() - t0 };
+    const ms = Date.now() - t0;
+    await Promise.all([
+      admin().from("connections").update({ status: "ok", last_error: null }).eq("id", conn.id),
+      settleUsage(usageId, { ok: true, ms }),
+    ]);
+    return { ...base, ok: true, id: r.id, url: r.url, ms };
   } catch (e: any) {
     const error = String(e?.message || e).slice(0, 1000);
-    await admin().from("connections").update({ status: "error", last_error: error }).eq("id", conn.id);
-    return { ...base, ok: false, error, ms: Date.now() - t0 };
+    const ms = Date.now() - t0;
+    await Promise.all([
+      admin().from("connections").update({ status: "error", last_error: error }).eq("id", conn.id),
+      settleUsage(usageId, { ok: false, ms, error }),
+    ]);
+    return { ...base, ok: false, error, ms };
   }
 }
 
@@ -126,7 +148,7 @@ export async function executePost(postId: string) {
   const p = post.payload as PostRequest;
   const input: PostInput = { text: p.text, title: p.title, link: p.link, media: p.media || [], options: p.options || {} };
 
-  const results = await Promise.all(selected.map((c) => publishOne(c, input)));
+  const results = await Promise.all(selected.map((c) => publishOne(c, input, postId)));
   const okCount = results.filter((r) => r.ok).length;
   const status = results.length === 0 ? "failed" : okCount === results.length ? "success" : okCount === 0 ? "failed" : "partial";
   const final = { results, unknown_targets: unknown };
