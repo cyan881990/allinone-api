@@ -6,13 +6,20 @@
 export type GuideLink = { label: string; url: string };
 /** Một bước: chuỗi, hoặc chuỗi kèm đoạn code/link mẫu hiển thị riêng để copy */
 export type GuideStep = string | { text: string; code: string };
+export type GuideSection = { title: string; steps: GuideStep[] };
+export type GuideFaq = { q: string; a: string };
 export type PlatformGuide = {
   /** Mất bao lâu, cần gì — một câu */
   summary: string;
-  steps: GuideStep[];
+  /** Các bước liền mạch (hướng dẫn ngắn) */
+  steps?: GuideStep[];
+  /** Hoặc chia thành nhiều phần có tiêu đề; số bước đánh liên tục qua các phần */
+  sections?: GuideSection[];
   links: GuideLink[];
   /** Lưu ý về hết hạn / giới hạn */
   caveats?: string[];
+  /** Lỗi thường gặp → cách xử lý */
+  faq?: GuideFaq[];
 };
 
 export const GUIDES: Record<string, PlatformGuide> = {
@@ -206,27 +213,88 @@ export const fillAppUrl = (s: string, appUrl: string) => s.replaceAll("{APP_URL}
 export const OAUTH_GUIDES: Record<string, PlatformGuide> = {
   instagram: {
     summary:
-      "Khoảng 10 phút, làm một lần. Tạo app Meta có Instagram Login, khai báo Redirect URI, rồi mỗi tài khoản chỉ cần mở URL xác thực và bấm Cho phép. Không cần Fanpage.",
-    steps: [
-      "Vào developers.facebook.com/apps → Create app → chọn use case quản lý nội dung Instagram (\"Manage messaging & content on Instagram\"), loại app Business.",
-      "Trong app: Instagram → API setup with Instagram login. Ở đầu trang, copy Instagram app ID và Instagram app secret. Đây KHÔNG phải App ID/App Secret ở Settings → Basic — dùng nhầm sẽ bị lỗi \"Invalid platform app\".",
+      "Làm một lần, khoảng 15 phút. Cần: tài khoản Facebook (để vào Meta for Developers) và tài khoản Instagram Business hoặc Creator để công khai. Không cần Fanpage. Không cần App Review nếu chỉ kết nối tài khoản của chính bạn.",
+    sections: [
       {
-        text: "Cùng trang, mục 3 \"Set up Instagram business login\" → Business login settings → OAuth redirect URIs: dán URL dưới đây → Save.",
-        code: "{APP_URL}/api/oauth/instagram/callback",
+        title: "Chuẩn bị tài khoản Instagram",
+        steps: [
+          "Trong app Instagram: Cài đặt → Loại tài khoản và công cụ → Chuyển sang tài khoản chuyên nghiệp → chọn Nhà sáng tạo (Creator) hoặc Doanh nghiệp (Business). Đã là tài khoản chuyên nghiệp thì bỏ qua.",
+          "Để tài khoản ở chế độ công khai: Cài đặt → Quyền riêng tư tài khoản → tắt Tài khoản riêng tư. Meta chỉ cho tài khoản công khai làm tài khoản thử nghiệm.",
+        ],
       },
-      "App đang ở chế độ Development: vào App roles → Roles → Add people → chọn Instagram Tester, nhập username Instagram. Chủ tài khoản chấp nhận lời mời tại https://www.instagram.com/accounts/manage_access/ (tab Tester invites).",
-      "Nhập Instagram app ID và app secret ở đây, bấm Tạo URL xác thực. Mở URL (hoặc gửi cho chủ tài khoản) → đăng nhập Instagram → Cho phép. API con tự xuất hiện trong danh sách.",
+      {
+        title: "Tạo app trên Meta for Developers",
+        steps: [
+          "Mở https://developers.facebook.com/apps và đăng nhập Facebook. Lần đầu vào, bấm Get started để đăng ký tài khoản nhà phát triển (xác minh email/số điện thoại).",
+          "Bấm Create app (góc phải trên). Bước Business portfolio: có thể chọn \"I don't want to connect a business portfolio yet\" → Next.",
+          "Bước Use cases: chọn Other → Next. (Nếu thấy use case \"Manage messaging & content on Instagram\", chọn nó cũng được — Meta sẽ tự thêm Instagram, bỏ qua bước thêm sản phẩm bên dưới.)",
+          "Bước App type: chọn Business → Next. Nhập App name (vd \"AllInOne API\") và email liên hệ → Create app, nhập lại mật khẩu Facebook nếu được hỏi.",
+          "Ở trang Add products to your app, cuộn tới Instagram → bấm Set up. Meta tự thêm mục \"API setup with Instagram login\" vào menu trái.",
+        ],
+      },
+      {
+        title: "Lấy Instagram app ID và app secret",
+        steps: [
+          "Menu trái: Instagram → API setup with Instagram login.",
+          "Ngay đầu trang có Instagram app name, Instagram app ID và Instagram app secret. Copy Instagram app ID. Ở Instagram app secret bấm Show (nhập mật khẩu Facebook) rồi copy.",
+          "Chú ý: con số cạnh tên app trên thanh trên cùng và ở App settings → Basic là Meta App ID — KHÔNG dùng số này. Dùng nhầm sẽ bị Instagram báo \"Invalid platform app\".",
+        ],
+      },
+      {
+        title: "Khai báo Redirect URI",
+        steps: [
+          {
+            text: "Cùng trang, mục \"3. Set up Instagram business login\" → bấm Set up (hoặc Business login settings). Ở ô OAuth redirect URIs dán URL dưới đây, nhấn Enter để nó thành một thẻ:",
+            code: "{APP_URL}/api/oauth/instagram/callback",
+          },
+          {
+            text: "Nếu Meta bắt buộc điền Deauthorize callback URL, dán:",
+            code: "{APP_URL}/api/oauth/instagram/deauthorize",
+          },
+          {
+            text: "Nếu Meta bắt buộc điền Data deletion request URL, dán:",
+            code: "{APP_URL}/api/oauth/instagram/data-deletion",
+          },
+          "Bấm Save. URL phải khớp từng ký tự: https, không có dấu / ở cuối.",
+        ],
+      },
+      {
+        title: "Cho tài khoản Instagram quyền dùng app",
+        steps: [
+          "Khi app ở chế độ Development, chỉ tài khoản có vai trò trong app mới đăng nhập được. Cùng trang, mục \"2. Generate access tokens\" → Add account → đăng nhập đúng tài khoản Instagram cần kết nối → Allow. Cách này tự thêm tài khoản làm Instagram Tester.",
+          "Cách khác: App roles → Roles → Add People → chọn Instagram Tester → nhập username. Sau đó chủ tài khoản mở https://www.instagram.com/accounts/manage_access/ → tab Tester invites → Accept.",
+        ],
+      },
+      {
+        title: "Kết nối trong web app",
+        steps: [
+          "Trong bảng điều khiển: chọn API remote → Nối API con → Instagram → tab Đăng nhập Instagram → dán Instagram app ID và app secret → Tạo URL xác thực. Không có cảnh báo đỏ nghĩa là app đã cấu hình đúng.",
+          "Bấm Mở trang đăng nhập Instagram → đăng nhập đúng tài khoản đã thêm ở phần trên → Allow (Cho phép). Trang kết quả báo \"Đã kết nối @tên\", API con hiện ngay trong bảng điều khiển.",
+          "Thử đăng: ở khung Đăng thử chọn API con Instagram, dán URL một ảnh .jpg công khai, bấm Đăng bài.",
+        ],
+      },
     ],
     links: [
+      { label: "Meta: Create a Meta app for the Instagram API", url: "https://developers.facebook.com/docs/instagram-platform/create-an-instagram-app" },
       { label: "Meta: Business Login for Instagram", url: "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login" },
-      { label: "Meta: Get started with Instagram API with Instagram Login", url: "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/get-started" },
+      { label: "Meta: Content Publishing", url: "https://developers.facebook.com/docs/instagram-platform/content-publishing" },
       { label: "Danh sách app Meta của bạn", url: "https://developers.facebook.com/apps" },
     ],
     caveats: [
-      "Tài khoản Instagram phải là Business hoặc Creator (Cài đặt → Loại tài khoản và công cụ).",
+      "Chế độ Development chỉ dùng được với tài khoản có vai trò trong app (Admin, Developer, Instagram Tester). Muốn kết nối tài khoản của người khác mà không thêm họ làm tester, app cần qua App Review cho instagram_business_basic + instagram_business_content_publish, xác minh doanh nghiệp, rồi chuyển sang Live.",
       "URL xác thực chỉ dùng được một lần và hết hạn sau 30 phút.",
-      "Token có hạn 60 ngày; app tự gia hạn khi còn dưới 15 ngày mỗi lần đăng bài. Nếu tài khoản không đăng gì suốt 60 ngày, hãy tạo URL mới — kết nối cũ được cập nhật, không tạo trùng.",
-      "App Secret được mã hoá AES-256 cùng token để gia hạn về sau.",
+      "Token có hạn 60 ngày; web app tự gia hạn khi còn dưới 15 ngày mỗi lần đăng bài. Nếu tài khoản không đăng gì suốt 60 ngày, tạo URL mới — API con cũ được cập nhật, không tạo trùng.",
+      "Nếu bạn bấm Reset Instagram app secret trên Meta, tạo lại URL xác thực với secret mới để gia hạn token được.",
+      "Ảnh phải là JPEG; video là MP4 (đăng dạng Reels). URL media phải mở được công khai, không cần đăng nhập.",
+    ],
+    faq: [
+      { q: "Invalid platform app", a: "Đang dùng Meta App ID thay vì Instagram app ID (xem phần \"Lấy Instagram app ID và app secret\"), hoặc app chưa thêm sản phẩm Instagram." },
+      { q: "Invalid redirect_uri / URL blocked", a: "Chưa lưu Redirect URI ở phần \"Khai báo Redirect URI\", hoặc dán sai một ký tự (thừa dấu /, http thay vì https)." },
+      { q: "Insufficient developer role / không thấy nút Cho phép", a: "Tài khoản Instagram chưa được thêm làm Instagram Tester, hoặc chưa chấp nhận lời mời." },
+      { q: "Error validating client secret", a: "Secret sai: dùng Instagram app secret (không phải App Secret ở App settings → Basic). Nếu vừa Reset secret thì tạo URL mới với secret mới." },
+      { q: "Matching code was not found or was already used", a: "URL đã được mở hai lần hoặc để quá lâu sau khi cấp quyền. Tạo URL mới." },
+      { q: "Đăng bài lỗi \"Media could not be fetched\" / sai định dạng", a: "URL ảnh/video phải công khai và trả về đúng file (ảnh JPEG, video MP4). Thử mở URL ở tab ẩn danh." },
+      { q: "Đăng bài lỗi thiếu quyền (permission)", a: "Lúc cấp quyền đã bỏ tick đăng nội dung. Tạo URL mới và để nguyên các quyền khi bấm Cho phép." },
     ],
   },
 };

@@ -1,5 +1,5 @@
 import { CopyButton } from "@/components/copy";
-import { fillAppUrl, type PlatformGuide } from "@/lib/platforms/guides";
+import { fillAppUrl, type GuideStep, type PlatformGuide } from "@/lib/platforms/guides";
 
 /** Biến URL trong văn bản thành link; URL chứa chỗ cần thay (<…>, CLIENT_KEY…) hiển thị dạng code */
 function Rich({ text }: { text: string }) {
@@ -28,26 +28,44 @@ function Rich({ text }: { text: string }) {
   );
 }
 
+function Steps({ steps, f, start = 1 }: { steps: GuideStep[]; f: (s: string) => string; start?: number }) {
+  return (
+    <ol start={start} className="list-decimal space-y-2 pl-5 marker:font-semibold marker:text-muted">
+      {steps.map((s, i) => (
+        <li key={i} className="pl-1 [overflow-wrap:anywhere]">
+          <Rich text={f(typeof s === "string" ? s : s.text)} />
+          {typeof s !== "string" && (
+            <div className="mt-1.5">
+              <pre className="code !mt-0 whitespace-pre-wrap break-all !px-3 !py-2.5 !text-[12px]">{f(s.code)}</pre>
+              <div className="mt-1 flex justify-end">
+                <CopyButton text={f(s.code)} className="text-[12px] font-semibold underline" label="Sao chép" />
+              </div>
+            </div>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function PlatformGuideView({ guide, appUrl, compact = false }: { guide: PlatformGuide; appUrl: string; compact?: boolean }) {
   const f = (s: string) => fillAppUrl(s, appUrl);
   return (
     <div className={compact ? "space-y-3 text-[13px] leading-relaxed" : "space-y-4 text-[14.5px] leading-relaxed"}>
       <p className="text-muted">{guide.summary}</p>
-      <ol className="list-decimal space-y-2 pl-5 marker:font-semibold marker:text-muted">
-        {guide.steps.map((s, i) => (
-          <li key={i} className="pl-1 [overflow-wrap:anywhere]">
-            <Rich text={f(typeof s === "string" ? s : s.text)} />
-            {typeof s !== "string" && (
-              <div className="mt-1.5">
-                <pre className="code !mt-0 whitespace-pre-wrap break-all !px-3 !py-2.5 !text-[12px]">{f(s.code)}</pre>
-                <div className="mt-1 flex justify-end">
-                  <CopyButton text={f(s.code)} className="text-[12px] font-semibold underline" label="Sao chép" />
-                </div>
-              </div>
-            )}
-          </li>
-        ))}
-      </ol>
+      {guide.steps && <Steps steps={guide.steps} f={f} />}
+      {guide.sections?.map((sec, i) => {
+        const start = 1 + guide.sections!.slice(0, i).reduce((n, x) => n + x.steps.length, 0);
+        return (
+          <section key={sec.title}>
+            <h4 className="mb-1.5 font-bold text-ink">
+              <span className="mr-1.5 text-muted">{String.fromCharCode(65 + i)}.</span>
+              {sec.title}
+            </h4>
+            <Steps steps={sec.steps} f={f} start={start} />
+          </section>
+        );
+      })}
       {guide.caveats && guide.caveats.length > 0 && (
         <div className="rounded-md border border-[#f3d9a0] bg-[#fff8e5] px-3 py-2">
           <p className="font-semibold text-signal-ink">Lưu ý</p>
@@ -56,6 +74,19 @@ export function PlatformGuideView({ guide, appUrl, compact = false }: { guide: P
               <li key={i}>{f(c)}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {guide.faq && guide.faq.length > 0 && (
+        <div>
+          <p className="font-semibold">Lỗi thường gặp</p>
+          <dl className="mt-1 space-y-2">
+            {guide.faq.map((x) => (
+              <div key={x.q}>
+                <dt className="font-mono text-[0.92em] font-medium">{x.q}</dt>
+                <dd className="text-muted">{f(x.a)}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       )}
       <div>
