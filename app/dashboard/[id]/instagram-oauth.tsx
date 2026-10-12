@@ -7,6 +7,41 @@ import { createInstagramAuthUrl, getOAuthStatus, type IgAuthState, type OAuthSta
 
 export type IgOAuthConfig = { redirectUri: string; envReady: boolean };
 
+const WARN = {
+  app: "Instagram không nhận App ID này — URL sẽ báo \"Invalid platform app\". Hãy dùng Instagram app ID (xem mục bên dưới).",
+  secret: "App Secret không khớp với App ID — đăng nhập được nhưng bước lấy token sẽ lỗi. Kiểm tra lại Instagram app secret.",
+  redirect: "Redirect URI chưa được khai báo trong app Meta — Instagram sẽ từ chối. Dán Redirect URI ở trên vào Business login settings.",
+} as const;
+
+/** Các lỗi thường gặp khi mở URL xác thực Instagram */
+function Troubleshoot({ open = false }: { open?: boolean }) {
+  const rows: [string, React.ReactNode][] = [
+    [
+      "Invalid platform app",
+      <>
+        App ID sai loại. Trong app Meta mở <b>Instagram → API setup with Instagram login</b>, dùng <b>Instagram app ID</b> và <b>Instagram app secret</b> ở đầu trang —
+        không dùng App ID/App Secret ở Settings → Basic. Nếu không thấy trang này, app chưa có use case Instagram API with Instagram login.
+      </>,
+    ],
+    ["Invalid redirect_uri", <>Chưa thêm Redirect URI (ô phía trên) vào Business login settings → OAuth redirect URIs, hoặc dán sai một ký tự.</>],
+    ["Insufficient developer role", <>App đang ở Development: thêm tài khoản làm Instagram Tester trong App roles và chấp nhận lời mời tại instagram.com/accounts/manage_access.</>],
+    ["Error validating client secret", <>App Secret sai — dùng Instagram app secret, không phải App Secret của Facebook.</>],
+  ];
+  return (
+    <details open={open || undefined} className="rounded-md border border-line px-3 py-2 text-[13px] [&_summary::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer select-none font-semibold">Instagram báo lỗi?</summary>
+      <dl className="mt-2 space-y-2">
+        {rows.map(([k, v]) => (
+          <div key={k}>
+            <dt className="font-mono text-[12px] font-medium">{k}</dt>
+            <dd className="text-muted">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 /** Tạo URL xác thực Instagram, mở/gửi URL, rồi tự theo dõi đến khi API con được tạo */
 export function InstagramOAuth({ remoteId, config }: { remoteId: string; config: IgOAuthConfig }) {
   const router = useRouter();
@@ -53,11 +88,20 @@ export function InstagramOAuth({ remoteId, config }: { remoteId: string; config:
             </p>
           </div>
         ) : failed ? (
-          <p className="rounded-md border border-[#efc2c2] bg-[#fdf1f1] px-3 py-2 text-sm text-err" role="alert">
-            {status?.status === "expired" ? "URL đã hết hạn. Hãy tạo URL mới." : status?.error}
-          </p>
+          <>
+            <p className="rounded-md border border-[#efc2c2] bg-[#fdf1f1] px-3 py-2 text-sm text-err" role="alert">
+              {status?.status === "expired" ? "URL đã hết hạn. Hãy tạo URL mới." : status?.error}
+            </p>
+            <Troubleshoot open />
+          </>
         ) : (
           <>
+            {active.warning && (
+              <div className="rounded-md border border-[#efc2c2] bg-[#fdf1f1] px-3 py-2 text-sm" role="alert">
+                <p className="font-semibold text-err">{WARN[active.warning.problem]}</p>
+                {active.warning.message && <p className="mt-1 text-[12.5px] text-muted">Instagram trả về: {active.warning.message}</p>}
+              </div>
+            )}
             <p className="text-sm">
               Mở URL dưới đây, đăng nhập Instagram và bấm <b>Cho phép</b>. Có thể gửi URL cho chủ tài khoản để họ tự cấp quyền.
             </p>
@@ -73,6 +117,7 @@ export function InstagramOAuth({ remoteId, config }: { remoteId: string; config:
               {status?.status === "processing" ? "Đang lấy token…" : "Đang chờ cấp quyền…"} URL dùng một lần, hết hạn lúc{" "}
               {new Date(active.expiresAt!).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}.
             </p>
+            <Troubleshoot />
           </>
         )}
         <button type="button" className="btn btn-ghost w-full" onClick={reset}>

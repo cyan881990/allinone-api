@@ -57,3 +57,47 @@ export async function igMe(token: string) {
   );
   return { user_id: String(r.user_id || r.id), username: String(r.username || ""), account_type: r.account_type as string | undefined };
 }
+
+export type IgPrecheck = { problem: "app" | "secret" | "redirect" | null; message?: string };
+
+/**
+ * Kiểm tra nhanh App ID/Secret/Redirect URI trước khi đưa URL cho người dùng:
+ * gửi một code giả tới endpoint đổi token và đọc lỗi Instagram trả về.
+ * App/secret/redirect hợp lệ thì lỗi sẽ chỉ là "code không hợp lệ" → coi như ổn.
+ * Lỗi mạng hoặc phản hồi lạ → bỏ qua (không chặn).
+ */
+export async function igPrecheck(appId: string, appSecret: string): Promise<IgPrecheck> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch("https://api.instagram.com/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: appId,
+        client_secret: appSecret,
+        grant_type: "authorization_code",
+        redirect_uri: igRedirectUri(),
+        code: "aio-precheck",
+      }),
+      signal: ctrl.signal,
+    });
+    const text = await res.text();
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      msg = j.error_message || j.error?.message || j.error_description || text;
+    } catch {}
+    msg = String(msg).slice(0, 300);
+    if (/platform app|invalid client|client_id|invalid app|application.*(not|invalid)/i.test(msg)) return { problem: "app", message: msg };
+    if (/client secret|app secret|client_secret/i.test(msg)) return { problem: "secret", message: msg };
+    // Lỗi nói về code (vd "Error validating verification code… redirect_uri…") là bình thường với code giả → không cảnh báo
+    if (/\bcode\b/i.test(msg)) return { problem: null, message: msg };
+    if (/redirect/i.test(msg)) return { problem: "redirect", message: msg };
+    return { problem: null, message: msg };
+  } catch {
+    return { problem: null };
+  } finally {
+    clearTimeout(timer);
+  }
+}

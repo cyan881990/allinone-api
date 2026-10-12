@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getOwnedRemote, insertConnection } from "@/lib/connections";
 import { decryptJSON, encryptJSON, generateApiKey, randomToken } from "@/lib/crypto";
 import { createPost, executePost, normalizeRequest, type RemoteApi } from "@/lib/dispatch";
-import { IG_STATE_TTL_MIN, igAuthorizeUrl, igEnvApp } from "@/lib/instagram-oauth";
+import { IG_STATE_TTL_MIN, igAuthorizeUrl, igEnvApp, igPrecheck } from "@/lib/instagram-oauth";
 import { getPlatform } from "@/lib/platforms";
 import { admin } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
@@ -193,7 +193,14 @@ export async function cancelPost(postId: string) {
 }
 
 /* ---------- OAuth: Đăng nhập Instagram ---------- */
-export type IgAuthState = { error?: string; url?: string; state?: string; expiresAt?: string };
+export type IgAuthState = {
+  error?: string;
+  url?: string;
+  state?: string;
+  expiresAt?: string;
+  /** Cảnh báo từ bước kiểm tra trước với Instagram (URL vẫn được tạo) */
+  warning?: { problem: "app" | "secret" | "redirect"; message?: string };
+};
 
 export async function createInstagramAuthUrl(_: IgAuthState, form: FormData): Promise<IgAuthState> {
   const user = await requireUser();
@@ -221,7 +228,13 @@ export async function createInstagramAuthUrl(_: IgAuthState, form: FormData): Pr
     expires_at: expiresAt,
   });
   if (error) return { error: error.message };
-  return { url: igAuthorizeUrl(app_id, state), state, expiresAt };
+  const check = await igPrecheck(app_id, app_secret);
+  return {
+    url: igAuthorizeUrl(app_id, state),
+    state,
+    expiresAt,
+    ...(check.problem ? { warning: { problem: check.problem, message: check.message } } : {}),
+  };
 }
 
 export type OAuthStatus = { status: "pending" | "processing" | "done" | "error" | "expired" | "unknown"; label?: string; account?: string; error?: string };

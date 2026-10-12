@@ -209,7 +209,7 @@ export const OAUTH_GUIDES: Record<string, PlatformGuide> = {
       "Khoảng 10 phút, làm một lần. Tạo app Meta có Instagram Login, khai báo Redirect URI, rồi mỗi tài khoản chỉ cần mở URL xác thực và bấm Cho phép. Không cần Fanpage.",
     steps: [
       "Vào developers.facebook.com/apps → Create app → chọn use case quản lý nội dung Instagram (\"Manage messaging & content on Instagram\"), loại app Business.",
-      "Trong app: Instagram → API setup with Instagram login. Ở đầu trang, copy Instagram app ID và Instagram app secret — đây KHÔNG phải App ID ở Settings → Basic.",
+      "Trong app: Instagram → API setup with Instagram login. Ở đầu trang, copy Instagram app ID và Instagram app secret. Đây KHÔNG phải App ID/App Secret ở Settings → Basic — dùng nhầm sẽ bị lỗi \"Invalid platform app\".",
       {
         text: "Cùng trang, mục 3 \"Set up Instagram business login\" → Business login settings → OAuth redirect URIs: dán URL dưới đây → Save.",
         code: "{APP_URL}/api/oauth/instagram/callback",
